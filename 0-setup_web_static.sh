@@ -1,62 +1,36 @@
 #!/usr/bin/env bash
-# Installs, configures, and starts the web server
-SERVER_CONFIG="server {
-	listen 80 default_server;
-	listen [::]:80 default_server;
-
-	server_name _;
-	index index.html index.htm;
-	error_page 404 /404.html;
-	add_header X-Served-By \$hostname;
-
-	location / {
-		root /var/www/html/;
-		try_files \$uri \$uri/ =404;
-	}
-
-	location /hbnb_static/ {
-		alias /data/web_static/current/;
-		try_files \$uri \$uri/ =404;
-	}
-
-	if (\$request_filename ~ redirect_me) {
-		rewrite ^ https://sketchfab.com/bluepeno/models permanent;
-	}
-
-	location = /404.html {
-		root /var/www/error/;
-		internal;
-	}
-}"
-HOME_PAGE="<!DOCTYPE html>
-<html lang='en-US'>
-	<head>
-		<title>Home - AirBnB Clone</title>
-	</head>
-	<body>
-		<h1>Welcome to AirBnB!</h1>
-	<body>
-</html>
-"
-# shellcheck disable=SC2230
-if [[ "$(which nginx | grep -c nginx)" == '0' ]]; then
-    apt-get update
+# prepares simple nginx servers for static deployment of `web-static`
+service nginx status
+if (( $? != 0 )); then
+    apt-get -y update
     apt-get -y install nginx
+    find /var/www/html/index.html
+    if (( $? != 0 )); then
+        mkdir -p /var/www/html/
+        echo 'Holberton School' > /var/www/html/index.html
+    fi
+    service nginx restart
 fi
-mkdir -p /var/www/html /var/www/error
-chmod -R 755 /var/www
-echo 'Hello World!' > /var/www/html/index.html
-echo -e "Ceci n\x27est pas une page" > /var/www/error/404.html
 
-mkdir -p /data/web_static/releases/test /data/web_static/shared
-echo -e "$HOME_PAGE" > /data/web_static/releases/test/index.html
-[ -d /data/web_static/current ] && rm -rf /data/web_static/current
-ln -sf /data/web_static/releases/test/ /data/web_static/current
-chown -hR ubuntu:ubuntu /data
-bash -c "echo -e '$SERVER_CONFIG' > /etc/nginx/sites-available/default"
-ln -sf '/etc/nginx/sites-available/default' '/etc/nginx/sites-enabled/default'
-if [ "$(pgrep -c nginx)" -le 0 ]; then
-	service nginx start
-else
-	service nginx restart
+mkdir -p /data/web_static/shared/
+find /data/web_static/releases/test/index.html
+if (( $? != 0 )); then
+    mkdir -p /data/web_static/releases/test/
+    echo "<html>
+  <head>
+  </head>
+  <body>
+    Holberton School
+  </body>
+</html>" > /data/web_static/releases/test/index.html
+    ln -sf /data/web_static/releases/test/ /data/web_static/current
+fi
+
+chown -R ubuntu:ubuntu /data/
+
+grep -q "location \/hbnb_static\/ {$" /etc/nginx/sites-available/default
+if (( $? != 0 )); then
+    cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.bup
+    sed -i "0,/^\tlocation \/ {$/s/^\tlocation \/ {$/\tlocation \/hbnb_static\/ {\n\t\talias \/data\/web_static\/current\/;\n\t\tautoindex off;\n\t}\n\n\tlocation \/ {/" /etc/nginx/sites-available/default
+    service nginx reload
 fi

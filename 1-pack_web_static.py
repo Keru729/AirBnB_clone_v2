@@ -1,29 +1,27 @@
 #!/usr/bin/python3
-"""A module for web application deployment with Fabric."""
-import os
+""" 0x03. AirBnB clone - Deploy static, task 1. Compress before sending
+"""
+from fabric.api import local, env
+from os import path, makedirs, listdir
 from datetime import datetime
-from fabric.api import local, runs_once
 
 
-@runs_once
 def do_pack():
-    """Archives the static files."""
-    if not os.path.isdir("versions"):
-        os.mkdir("versions")
-    cur_time = datetime.now()
-    output = "versions/web_static_{}{}{}{}{}{}.tgz".format(
-        cur_time.year,
-        cur_time.month,
-        cur_time.day,
-        cur_time.hour,
-        cur_time.minute,
-        cur_time.second
-    )
-    try:
-        print("Packing web_static to {}".format(output))
-        local("tar -cvzf {} web_static".format(output))
-        archize_size = os.stat(output).st_size
-        print("web_static packed: {} -> {} Bytes".format(output, archize_size))
-    except Exception:
-        output = None
-    return output
+    """ Generates a .tgz archive from the contents `web_static/` in AirBnB clone
+    repo.
+
+    Retruns:
+        (str): full path from current directory to `.tgz` archive created in
+    `versions/`, or `None` on failure
+    """
+    if not path.isdir("./versions"):
+        makedirs("./versions")
+
+    now = datetime.now().strftime('%Y%m%d%H%M%S')
+    local('tar -cvzf versions/web_static_{}.tgz web_static/'.format(now))
+
+    files = listdir("./versions")
+    paths = [path.join("./versions", base_name) for base_name in files]
+    if len(paths) == 0:
+        return None
+    return max(paths, key=path.getctime)
